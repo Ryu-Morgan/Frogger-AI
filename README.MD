@@ -14,11 +14,6 @@ This project has two parts:
 
 ---
 
-## Project Structure
-
-```
-
----
 
 ## Quick Start
 
