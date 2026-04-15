@@ -17,28 +17,6 @@ This project has two parts:
 ## Project Structure
 
 ```
-frogger-rl/
-├── main.py
-├── util.py
-├── agent.py
-├── state.py
-│
-└── frogger/
-    ├── __init__.py
-    ├── arcade.py
-    ├── frogger.py
-    ├── frog.py
-    ├── sprite.py
-    ├── icon.py
-    ├── image.py
-    ├── settings.py
-    └── img/
-        ├── background.png
-        └── sprites.png
-
-train/
-└── q.json              # Your agent's Q-table (auto-created on first run)
-```
 
 ---
 
