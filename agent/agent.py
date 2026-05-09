@@ -30,12 +30,14 @@ class Q_State(State):
 
         # this simple key uses the 3 object characters above the frog
         # and combines them into a key string
+
+        # this is the state the frog sees 
         return ''.join([
-            self.get(self.frog_x - 1, self.frog_y - 1) or '_',
-            self.get(self.frog_x, self.frog_y - 1) or '_',
-            self.get(self.frog_x + 1, self.frog_y - 1) or '_',
-            self.get(self.frog_x - 1, self.frog_y) or '_', # added left
-            self.get(self.frog_x + 1, self.frog_y) or '_', # added right
+            self.get(self.frog_x - 1, self.frog_y - 1) or '_', # up + left
+            self.get(self.frog_x, self.frog_y - 1) or '_', # up
+            self.get(self.frog_x + 1, self.frog_y - 1) or '_', # up + right
+            self.get(self.frog_x - 1, self.frog_y) or '_', # left
+            self.get(self.frog_x + 1, self.frog_y) or '_', # right
         ])
 
     def reward(self):
@@ -46,7 +48,8 @@ class Q_State(State):
         elif self.is_done:
             return -10
         else:
-            return 0
+            # This encourages progress instead of standing still
+            return (self.max_y - self.frog_y) * 0.1
 
 
 class Agent:
@@ -57,7 +60,12 @@ class Agent:
         self.name = train or 'q'
         self.path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train', self.name + '.json')
         
-        # Load the Q-table once at initialization
+        # track the previous state and action after each step
+        self.prev_state = None
+        self.prev_action = None
+        # We need to limit the number of steps that are saved
+        self.steps = 0
+        self.save_interval = 100
         self.load()
 
     def load(self):
@@ -77,22 +85,52 @@ class Agent:
             json.dump(self.q, f, indent=2)  # Using `indent` for easier reading
         return self
 
+
+    def get_q_values(self, key):
+        '''Returns Q-values for a state, initializing to 0 if unseen.'''
+        if key not in self.q:
+            self.q[key] = {action: 0.0 for action in State.ACTIONS}
+        return self.q[key]
+
+    def _update_q(self, prev_state, action, curr_state):
+        '''
+        Implements the Bellman equation.
+
+        new_q = old_q + alpha * (reward + gamma * best_future - old_q)
+        '''
+        old_q = self.get_q_values(prev_state.key)
+        new_q = self.get_q_values(curr_state.key)
+
+        old_value = old_q[action]
+        reward = curr_state.reward()
+        best_future = max(new_q.values())
+
+        # Bellman update
+        old_q[action] = old_value + Q_State.alpha * (
+            reward + Q_State.gamma * best_future - old_value
+        )
+
     def choose_action(self, state_string):
-        '''Returns the action to perform using epsilon-greedy strategy'''
+        '''Returns the action to perform'''
         state = Q_State(state_string)
-        key_state = state.key
 
-        # Initialize Q-values if state not in Q-table
-        if key_state not in self.q:
-            self.q[key_state] = {action: 0 for action in State.ACTIONS}
-            self.save()  
+        # q-update we need to use the previous state and action to update the Q-table based on the current state
+        if self.prev_action and self.prev_state:
+            self._update_q(self.prev_state, self.prev_action, state)
 
-        # Epsilon-greedy action selection
         if random.uniform(0, 1) < Q_State.epsilon:
-            # Random action and save the Q-value
-            action = random.choice(State.ACTIONS)
+            action = random.choice(State.ACTIONS)  # explore
         else:
-            action = max(self.q[key_state], key=self.q[key_state].get)
+            q_values = self.get_q_values(state.key)
+            action = max(q_values, key=q_values.get)  # exploit
 
-        self.save()  
+        # Remember this state/action for next update
+        self.prev_state = state
+        self.prev_action = action
+
+        # Save periodically, not every step
+        self.steps += 1
+        if self.train and self.steps % self.save_interval == 0:
+            self.save()
+
         return action
